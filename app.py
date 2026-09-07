@@ -167,7 +167,7 @@ col_left, col_right = st.columns([1.15, 1.0], gap="large")
 with col_left:
     st.markdown('<div class="studio-card-header">🎥 Incident Feed & Frame Scrubber</div>', unsafe_allow_html=True)
     if active_video_path:
-        st.video(active_video_path)
+        st.video(active_video_path, format="video/mp4")
 
     if frames:
         num_frames = len(frames)

@@ -6,8 +6,24 @@ Generates two distinct scenarios:
 """
 
 import os
+import subprocess
 import cv2
 import numpy as np
+import imageio_ffmpeg
+
+
+def reencode_to_h264(video_path: str):
+    """Re-encode video to browser-compliant H.264 (libx264) with yuv420p pixel format."""
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+    temp_path = video_path + ".h264.mp4"
+    cmd = [
+        ffmpeg_exe, "-y", "-i", video_path,
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        temp_path
+    ]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    os.replace(temp_path, video_path)
 
 
 def create_cricket_clip(
@@ -167,7 +183,8 @@ def create_cricket_clip(
         out.write(frame)
 
     out.release()
-    print(f"Generated {scenario} clip at: {output_path}")
+    reencode_to_h264(output_path)
+    print(f"Generated H.264 clip at: {output_path}")
 
 
 if __name__ == "__main__":
