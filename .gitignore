@@ -1,0 +1,5 @@
+venv/
+.env
+__pycache__/
+assets/frames/*
+!assets/frames/.gitkeep
