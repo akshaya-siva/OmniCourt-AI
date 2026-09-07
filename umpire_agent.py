@@ -4,6 +4,8 @@ Uses gemini-3.1-flash-lite on uncropped RGB frames to adjudicate Run Outs, Stump
 """
 
 import os
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
+
 import json
 from typing import Literal, List, Dict, Any, Optional
 import cv2
@@ -55,7 +57,8 @@ def get_effective_api_key(api_key_override: Optional[str] = None) -> Optional[st
     if api_key_override and api_key_override.strip():
         return api_key_override.strip()
     load_dotenv(override=True)
-    return os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
+    return key if key else None
 
 
 def adjudicate_clip(

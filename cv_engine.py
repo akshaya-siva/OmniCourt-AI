@@ -3,9 +3,11 @@ OmniCourt-AI Computer Vision Engine.
 Provides frame extraction utilities and Gemini 3.1 Flash-Lite video scanning via Google GenAI Files API.
 """
 
+import os
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
+
 import cv2
 import numpy as np
-import os
 import time
 import json
 from typing import List, Dict, Any, Optional
@@ -94,7 +96,7 @@ def find_event_timestamp_with_ai(
     Direct implementation using Gemini 3.1 Flash-Lite and the Files API.
     Identifies the exact second of bail dislodgment across the full match video.
     """
-    effective_key = api_key or os.environ.get("GEMINI_API_KEY", "").strip()
+    effective_key = (api_key or os.getenv("GEMINI_API_KEY", "")).strip()
     if not effective_key or not GENAI_AVAILABLE:
         return {"impact_timestamp_sec": 0.0, "impact_frame_index": 0, "source": "Manual Standby"}
 
