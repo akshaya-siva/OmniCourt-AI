@@ -4,7 +4,11 @@ Uses gemini-3.1-flash-lite on uncropped RGB frames to adjudicate Run Outs, Stump
 """
 
 import os
+
+# Prevent google-genai from auto-routing to Google Cloud Vertex AI
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
+os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 
 import json
 from typing import Literal, List, Dict, Any, Optional
@@ -54,11 +58,25 @@ class AdjudicationDocket(BaseModel):
 
 
 def get_effective_api_key(api_key_override: Optional[str] = None) -> Optional[str]:
+    # 1. UI Override
     if api_key_override and api_key_override.strip():
         return api_key_override.strip()
-    load_dotenv(override=True)
-    key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
-    return key if key else None
+    
+    # 2. Injected Cloud Run Environment Variable
+    env_key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
+    if env_key:
+        return env_key
+
+    # 3. Local fallback (.env file)
+    try:
+        load_dotenv()
+        fallback_key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
+        if fallback_key:
+            return fallback_key
+    except Exception:
+        pass
+
+    return None
 
 
 def adjudicate_clip(
@@ -78,7 +96,8 @@ def adjudicate_clip(
     if not api_key or not GENAI_AVAILABLE:
         raise RuntimeError("GEMINI_API_KEY is not configured or google-genai is missing.")
 
-    client = genai.Client(api_key=api_key)
+    # Explicitly enforce Gemini Developer API (vertexai=False)
+    client = genai.Client(api_key=api_key, vertexai=False)
 
     # Convert full, uncropped frames into PIL images (RGB)
     sample_frames = target_frames
