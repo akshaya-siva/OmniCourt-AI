@@ -16,7 +16,6 @@ import cv2
 import numpy as np
 from PIL import Image
 from pydantic import BaseModel, Field
-from dotenv import load_dotenv
 
 import cv_engine
 
@@ -57,24 +56,23 @@ class AdjudicationDocket(BaseModel):
         return d
 
 
-def get_effective_api_key(api_key_override: Optional[str] = None) -> Optional[str]:
-    # 1. UI Override
-    if api_key_override and api_key_override.strip():
-        return api_key_override.strip()
-    
-    # 2. Injected Cloud Run Environment Variable
-    env_key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
-    if env_key:
-        return env_key
+def clean_key(val: Optional[str]) -> str:
+    """Removes all whitespace, quotes, and newlines that break AQ. keys."""
+    if not val:
+        return ""
+    return val.strip().strip('"').strip("'").strip()
 
-    # 3. Local fallback (.env file)
-    try:
-        load_dotenv()
-        fallback_key = os.getenv("GEMINI_API_KEY", "").strip() or os.getenv("GOOGLE_API_KEY", "").strip()
-        if fallback_key:
-            return fallback_key
-    except Exception:
-        pass
+
+def get_effective_api_key(api_key_override: Optional[str] = None) -> Optional[str]:
+    # 1. UI Override takes absolute priority
+    cleaned_override = clean_key(api_key_override)
+    if cleaned_override:
+        return cleaned_override
+
+    # 2. Injected Cloud Run Environment Variable
+    env_k = clean_key(os.environ.get("GEMINI_API_KEY")) or clean_key(os.environ.get("GOOGLE_API_KEY"))
+    if env_k:
+        return env_k
 
     return None
 
@@ -96,10 +94,9 @@ def adjudicate_clip(
     if not api_key or not GENAI_AVAILABLE:
         raise RuntimeError("GEMINI_API_KEY is not configured or google-genai is missing.")
 
-    # Explicitly enforce Gemini Developer API (vertexai=False)
+    # Strictly enforce public developer endpoint without GCP vertex auto-switch
     client = genai.Client(api_key=api_key, vertexai=False)
 
-    # Convert full, uncropped frames into PIL images (RGB)
     sample_frames = target_frames
     if len(target_frames) > 5:
         indices = [int(round(i)) for i in np.linspace(0, len(target_frames) - 1, num=5)]
@@ -124,34 +121,13 @@ def adjudicate_clip(
 You are an expert ICC/MCC Elite Panel Third Umpire conducting a DRS video review.
 You are inspecting {n} sequential chronological broadcast frames at timestamps: {timecodes}.
 
-DECISION PROTOCOL (Follow strictly in sequence):
-
-1. CHECK FOR DIRECT "BOWLED" (MCC Law 32):
-   - Did the bowler's delivered ball strike the wicket directly and dislodge the bails?
-   - If YES -> The batter is BOWLED. Crease grounding is irrelevant.
-   - Verdict: "OUT", Law: "MCC Law 32.1 (Bowled)", bat_grounded_behind_crease: false.
-
-2. IDENTIFY THE MOMENT THE WICKET IS BROKEN (MCC Law 29):
-   - Pinpoint the exact frame where:
-     * The bails are first lifted or separated from the stumps, OR
-     * The stumps light up (LED Zing bails), OR
-     * A stump is struck and displaced by the ball or hand with the ball.
-
+DECISION PROTOCOL:
+1. CHECK FOR DIRECT "BOWLED" (MCC Law 32).
+2. IDENTIFY THE MOMENT THE WICKET IS BROKEN (MCC Law 29).
 3. CHECK BAT / FOOT GROUNDING (MCC Law 38 Run Out / MCC Law 39 Stumped):
-   - Evaluate the batsman's bat tip or foot relative to the white POPPING CREASE line at or prior to the wicket-break frame.
-   - OFFICIAL CRICKET RULE: "The line belongs to the umpire."
-     * Touching ON the line is NOT safe.
-     * Being airborne over the line is NOT safe.
-   - For "NOT OUT":
-     * There MUST be clear visual evidence that the bat tip or a part of the batter's person is physically grounded ON THE TURF COMPLETELY PAST the popping crease (towards the wicket-keeper/stumps side) before the bails dislodge.
-   - For "OUT":
-     * The bat/foot is short of the popping crease.
-     * The bat/foot is touching the white paint of the crease line, but not grounded beyond it.
-     * The bat is sliding above the turf (airborne) as bails break.
-     * The foot is raised or sliding in the air (Stumping).
-     * If there is doubt or no grounded contact beyond the line -> Rule OUT.
-
-DO NOT default to NOT OUT. If the bat or foot has not visibly made contact with the grass beyond the popping crease line before the bails break, the ruling MUST be OUT.
+   - The line belongs to the umpire.
+   - For "NOT OUT": bat tip or batter is physically grounded on turf COMPLETELY PAST popping crease before bails dislodge.
+   - Otherwise rule "OUT".
 
 Return strictly a JSON object conforming to this schema:
 {{
@@ -160,11 +136,11 @@ Return strictly a JSON object conforming to this schema:
   "bat_grounded_behind_crease": true or false,
   "governing_mcc_law": "MCC Law 38.1 (Run Out)" or "MCC Law 39.1 (Stumped)" or "MCC Law 32.1 (Bowled)",
   "confidence_score": 0.95,
-  "visual_evidence_summary": "Detailed technical finding: state of bails/stumps, exact position of bat/foot relative to the popping crease, and ground contact.",
+  "visual_evidence_summary": "Detailed technical finding.",
   "agent_reasoning_trace": [
-    "Step 1: Examined delivery and verified wicket impact.",
-    "Step 2: Identified exact frame where bails separate/illuminate.",
-    "Step 3: Inspected bat/foot position against the popping crease line."
+    "Step 1: Examined delivery.",
+    "Step 2: Identified wicket break frame.",
+    "Step 3: Inspected bat/foot grounding."
   ]
 }}
 """

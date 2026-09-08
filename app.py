@@ -80,16 +80,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Helper function to resolve key directly from UI override or server environment
-def resolve_api_key() -> str:
-    raw_override = st.session_state.get("api_key_override", "")
-    if raw_override and raw_override.strip():
-        return raw_override.strip()
-    return (
-        os.environ.get("GEMINI_API_KEY", "").strip()
-        or os.environ.get("GOOGLE_API_KEY", "").strip()
-    )
-
 # Session State
 if "current_video_path" not in st.session_state:
     st.session_state.current_video_path = None
@@ -125,6 +115,13 @@ with st.sidebar:
     if api_key_input != st.session_state.api_key_override:
         st.session_state.api_key_override = api_key_input
 
+    # Diagnostic indicator showing active key resolution
+    resolved_key = get_effective_api_key(st.session_state.api_key_override)
+    if resolved_key:
+        st.caption(f"🔑 Active Key: `{resolved_key[:5]}...{resolved_key[-4:]}` ({len(resolved_key)} chars)")
+    else:
+        st.error("⚠️ No Gemini API key detected!")
+
     videos_dir = os.path.join("assets", "videos")
     os.makedirs(videos_dir, exist_ok=True)
     existing_videos = [f for f in sorted(os.listdir(videos_dir)) if f.endswith((".mp4", ".mov", ".avi"))]
@@ -159,7 +156,7 @@ if active_video_path and active_video_path != st.session_state.current_video_pat
         )
 
     with st.spinner("Scanning video with Gemini 3.1 Flash-Lite to pinpoint wicket break..."):
-        eff_key = resolve_api_key()
+        eff_key = get_effective_api_key(st.session_state.api_key_override)
         event_data = cv_engine.find_event_timestamp_with_ai(
             active_video_path,
             api_key=eff_key,
@@ -236,7 +233,7 @@ with col_right:
 
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
     if st.button("🔴 Send to Third Umpire (Adjudicate)", type="primary", use_container_width=True):
-        eff_key = resolve_api_key()
+        eff_key = get_effective_api_key(st.session_state.api_key_override)
         with st.spinner("Gemini 3.1 Flash-Lite is evaluating crease geometry and bails..."):
             try:
                 docket = adjudicate_clip(
