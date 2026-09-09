@@ -5,7 +5,14 @@ Handles frame extraction, temporal scanning with Gemini 3.1 Flash-Lite, and visu
 
 import os
 
-# Enforce Gemini Developer API and disable Vertex AI auto-detection
+# Load local .env for local development convenience
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Ensure standard Gemini Developer API mode
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
 os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
@@ -21,8 +28,6 @@ try:
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
-
-DEFAULT_GEMINI_KEY = ""
 
 
 def clean_key(val: Optional[str]) -> str:
@@ -105,18 +110,13 @@ def find_event_timestamp_with_ai(
     }
 
     cleaned = clean_key(api_key)
-    effective_key = cleaned or clean_key(os.environ.get("GEMINI_API_KEY")) or DEFAULT_GEMINI_KEY
+    effective_key = cleaned or clean_key(os.environ.get("GEMINI_API_KEY")) or clean_key(os.environ.get("GOOGLE_API_KEY"))
 
     if not effective_key or not GENAI_AVAILABLE:
         return fallback_data
 
     try:
-        # Enforce explicit header and vertexai=False
-        client = genai.Client(
-            api_key=effective_key,
-            vertexai=False,
-            http_options=types.HttpOptions(headers={"x-goog-api-key": effective_key})
-        )
+        client = genai.Client(api_key=effective_key, vertexai=False)
         uploaded_file = client.files.upload(file=video_path)
 
         prompt = """
@@ -150,7 +150,7 @@ Respond strictly in JSON:
             "notes": "AI-detected impact frame"
         }
     except Exception:
-        # Silently fall back to geometric midpoint if scanning fails
+        # Fall back cleanly without crashing UI pipeline
         return fallback_data
 
 

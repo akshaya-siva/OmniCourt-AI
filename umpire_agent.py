@@ -5,7 +5,14 @@ Uses gemini-3.1-flash-lite on uncropped RGB frames to adjudicate Run Outs, Stump
 
 import os
 
-# Enforce Gemini Developer API and disable Vertex AI auto-detection
+# Load local .env for local development convenience (no-op in production if excluded via .dockerignore)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Ensure standard Gemini Developer API mode
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
 os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
@@ -25,8 +32,6 @@ try:
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
-
-DEFAULT_GEMINI_KEY = ""
 
 
 class AdjudicationDocket(BaseModel):
@@ -66,16 +71,36 @@ def clean_key(val: Optional[str]) -> str:
 
 
 def get_effective_api_key(api_key_override: Optional[str] = None) -> str:
-    """Resolves active key from override, Cloud Run environment, or embedded default."""
-    cleaned = clean_key(api_key_override)
-    if cleaned:
-        return cleaned
+    """
+    Uniform single source of truth for API key resolution:
+    1. Returns manual override if provided.
+    2. Falls back to GEMINI_API_KEY environment variable.
+    3. Falls back to GOOGLE_API_KEY environment variable.
+    4. Returns empty string if none exist (no dummy or fabricated tokens).
+    """
+    cleaned_override = clean_key(api_key_override)
+    if cleaned_override:
+        return cleaned_override
 
-    env_key = clean_key(os.environ.get("GEMINI_API_KEY")) or clean_key(os.environ.get("GOOGLE_API_KEY"))
-    if env_key:
-        return env_key
+    env_gemini = clean_key(os.environ.get("GEMINI_API_KEY"))
+    if env_gemini:
+        return env_gemini
 
-    return DEFAULT_GEMINI_KEY
+    env_google = clean_key(os.environ.get("GOOGLE_API_KEY"))
+    if env_google:
+        return env_google
+
+    return ""
+
+
+def mask_key(key: str) -> str:
+    """Returns safe masked representation: ABCD...WXYZ (N chars)."""
+    cleaned = clean_key(key)
+    if not cleaned:
+        return "None"
+    if len(cleaned) <= 8:
+        return f"{cleaned[:2]}...{cleaned[-2:]} ({len(cleaned)} chars)"
+    return f"{cleaned[:4]}...{cleaned[-4:]} ({len(cleaned)} chars)"
 
 
 def adjudicate_clip(
@@ -92,15 +117,14 @@ def adjudicate_clip(
     target_frames = evidence_frames if (evidence_frames and len(evidence_frames) > 0) else frames
 
     active_key = get_effective_api_key(api_key_override)
-    if not active_key or not GENAI_AVAILABLE:
-        raise RuntimeError("Gemini API key is missing or google-genai package is not available.")
+    if not active_key:
+        raise RuntimeError("Gemini API key is missing. Set GEMINI_API_KEY in the environment or provide a Live Override.")
 
-    # Explicit x-goog-api-key header and vertexai=False to prevent 401 on AQ. keys
-    client = genai.Client(
-        api_key=active_key,
-        vertexai=False,
-        http_options=types.HttpOptions(headers={"x-goog-api-key": active_key})
-    )
+    if not GENAI_AVAILABLE:
+        raise RuntimeError("The google-genai library is not installed or unavailable.")
+
+    # Standard SDK client invocation using the resolved API key
+    client = genai.Client(api_key=active_key, vertexai=False)
 
     sample_frames = target_frames
     if len(target_frames) > 5:
