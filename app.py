@@ -6,7 +6,12 @@ High-precision third-umpire interface with Gemini 3.1 Flash-Lite video scanning 
 import os
 import hashlib
 
-# Load local environment if present
+os.environ["NO_GCE_CHECK"] = "True"
+os.environ["GCE_METADATA_HOST"] = "none"
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
+os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -21,7 +26,6 @@ from umpire_agent import adjudicate_clip, AdjudicationDocket, get_effective_api_
 
 st.set_page_config(page_title="OmniCourt-AI | DRS Studio", page_icon="🏏", layout="wide")
 
-# Custom Broadcast Theme
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@500;700&display=swap');
@@ -91,13 +95,11 @@ st.markdown("""
 
 
 def get_key_fingerprint(key_str: str) -> str:
-    """Returns a non-reversible SHA-256 fingerprint for safe diagnostics."""
     if not key_str:
         return "None"
     return hashlib.sha256(key_str.encode("utf-8")).hexdigest()[:12]
 
 
-# Session State Initialization - Live Override widget starts EMPTY as an optional field
 if "gemini_key_widget" not in st.session_state:
     st.session_state["gemini_key_widget"] = ""
 if "current_video_path" not in st.session_state:
@@ -115,7 +117,6 @@ if "adjudication_error" not in st.session_state:
 if "auto_event_data" not in st.session_state:
     st.session_state.auto_event_data = None
 
-# Navbar
 st.markdown("""
 <div class="studio-navbar">
     <div>
@@ -125,13 +126,11 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Key Resolution
 override_key = clean_key(st.session_state.get("gemini_key_widget", ""))
 env_gemini_key = clean_key(os.environ.get("GEMINI_API_KEY"))
 env_google_key = clean_key(os.environ.get("GOOGLE_API_KEY"))
 active_key = override_key or env_gemini_key or env_google_key
 
-# Sidebar
 with st.sidebar:
     st.subheader("DRS Configuration")
 
@@ -142,7 +141,6 @@ with st.sidebar:
         help="Optional: Enter a key here to override the deployment environment secret."
     )
 
-    # Safe Diagnostic Panel
     with st.expander("🔍 Authentication Diagnostics", expanded=True):
         if override_key:
             st.success("State: **LIVE OVERRIDE PROVIDED**")
@@ -177,7 +175,6 @@ with st.sidebar:
     elif video_choice != "Upload Custom Video...":
         active_video_path = os.path.join(videos_dir, video_choice)
 
-# Automatic pipeline on video selection
 if active_video_path and active_video_path != st.session_state.current_video_path:
     st.session_state.current_video_path = active_video_path
     st.session_state.adjudication_result = None

@@ -4,22 +4,24 @@ Handles frame extraction, temporal scanning with Gemini 3.1 Flash-Lite, and visu
 """
 
 import os
-import cv2
-import json
-import numpy as np
-from typing import List, Dict, Any, Optional
 
-# Load local environment if present
+# Block GCE metadata server lookup and force standard Developer API
+os.environ["NO_GCE_CHECK"] = "True"
+os.environ["GCE_METADATA_HOST"] = "none"
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
+os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
 
-# Ensure standard Gemini Developer API mode
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
-os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
-os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+import cv2
+import json
+import numpy as np
+from typing import List, Dict, Any, Optional
 
 try:
     from google import genai
@@ -115,7 +117,13 @@ def find_event_timestamp_with_ai(
         return fallback_data
 
     try:
-        client = genai.Client(api_key=effective_key, vertexai=False)
+        client = genai.Client(
+            api_key=effective_key,
+            vertexai=False,
+            http_options=types.HttpOptions(
+                headers={"x-goog-api-key": effective_key}
+            )
+        )
         uploaded_file = client.files.upload(file=video_path)
 
         prompt = """

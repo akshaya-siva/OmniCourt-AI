@@ -4,24 +4,26 @@ Uses gemini-3.1-flash-lite on uncropped RGB frames to adjudicate Run Outs, Stump
 """
 
 import os
-import json
-from typing import Literal, List, Dict, Any, Optional
-import cv2
-import numpy as np
-from PIL import Image
-from pydantic import BaseModel, Field
 
-# Load local environment if present (no-op in production container)
+# Block GCE metadata server lookup and force standard Developer API
+os.environ["NO_GCE_CHECK"] = "True"
+os.environ["GCE_METADATA_HOST"] = "none"
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
+os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
 
-# Ensure standard Gemini Developer API mode
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
-os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
-os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+import json
+from typing import Literal, List, Dict, Any, Optional
+import cv2
+import numpy as np
+from PIL import Image
+from pydantic import BaseModel, Field
 
 import cv_engine
 
@@ -72,10 +74,10 @@ def clean_key(val: Optional[str]) -> str:
 def get_effective_api_key(api_key_override: Optional[str] = None) -> str:
     """
     Uniform single source of truth for API key resolution:
-    1. Returns manual override if provided.
-    2. Falls back to GEMINI_API_KEY environment variable.
-    3. Falls back to GOOGLE_API_KEY environment variable.
-    4. Returns empty string if missing.
+    1. Manual UI override if entered.
+    2. GEMINI_API_KEY environment variable.
+    3. GOOGLE_API_KEY environment variable.
+    4. Empty string if none detected.
     """
     cleaned_override = clean_key(api_key_override)
     if cleaned_override:
@@ -112,7 +114,13 @@ def adjudicate_clip(
     if not GENAI_AVAILABLE:
         raise RuntimeError("The google-genai library is not installed.")
 
-    client = genai.Client(api_key=active_key, vertexai=False)
+    client = genai.Client(
+        api_key=active_key,
+        vertexai=False,
+        http_options=types.HttpOptions(
+            headers={"x-goog-api-key": active_key}
+        )
+    )
 
     sample_frames = target_frames
     if len(target_frames) > 5:
