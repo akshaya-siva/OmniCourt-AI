@@ -95,8 +95,12 @@ def adjudicate_clip(
     if not active_key or not GENAI_AVAILABLE:
         raise RuntimeError("Gemini API key is missing or google-genai package is not available.")
 
-    # Explicit constructor ensures zero routing to Vertex AI
-    client = genai.Client(api_key=active_key, vertexai=False)
+    # Explicit x-goog-api-key header and vertexai=False to prevent 401 on AQ. keys
+    client = genai.Client(
+        api_key=active_key,
+        vertexai=False,
+        http_options=types.HttpOptions(headers={"x-goog-api-key": active_key})
+    )
 
     sample_frames = target_frames
     if len(target_frames) > 5:

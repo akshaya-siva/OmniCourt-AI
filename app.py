@@ -8,7 +8,7 @@ import streamlit as st
 from PIL import Image
 
 import cv_engine
-from umpire_agent import adjudicate_clip, AdjudicationDocket, get_effective_api_key
+from umpire_agent import adjudicate_clip, AdjudicationDocket, get_effective_api_key, clean_key
 
 st.set_page_config(page_title="OmniCourt-AI | DRS Studio", page_icon="🏏", layout="wide")
 
@@ -80,7 +80,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Session State Initialization
+# Session State Initialization - Bind default key directly on load
+if "gemini_key_widget" not in st.session_state:
+    st.session_state["gemini_key_widget"] = get_effective_api_key()
 if "current_video_path" not in st.session_state:
     st.session_state.current_video_path = None
 if "extracted_frames" not in st.session_state:
@@ -93,8 +95,6 @@ if "adjudication_result" not in st.session_state:
     st.session_state.adjudication_result = None
 if "adjudication_error" not in st.session_state:
     st.session_state.adjudication_error = None
-if "api_key_override" not in st.session_state:
-    st.session_state.api_key_override = get_effective_api_key()
 if "auto_event_data" not in st.session_state:
     st.session_state.auto_event_data = None
 
@@ -111,15 +111,16 @@ st.markdown("""
 # Sidebar
 with st.sidebar:
     st.subheader("DRS Configuration")
-    api_key_input = st.text_input(
+    
+    # Directly link widget to session_state with key="gemini_key_widget"
+    st.text_input(
         "Gemini API Key (Live Override)",
-        value=st.session_state.api_key_override,
+        key="gemini_key_widget",
         type="password"
     )
-    if api_key_input != st.session_state.api_key_override:
-        st.session_state.api_key_override = api_key_input
 
-    active_key = get_effective_api_key(st.session_state.api_key_override)
+    # Resolve active key reliably from live state or environment
+    active_key = clean_key(st.session_state.get("gemini_key_widget", "")) or get_effective_api_key()
     if active_key:
         st.caption(f"🔑 Active Key: `{active_key[:5]}...{active_key[-4:]}` ({len(active_key)} chars)")
     else:
@@ -159,7 +160,7 @@ if active_video_path and active_video_path != st.session_state.current_video_pat
         )
 
     with st.spinner("Scanning video with Gemini 3.1 Flash-Lite to pinpoint wicket break..."):
-        eff_key = get_effective_api_key(st.session_state.api_key_override)
+        eff_key = clean_key(st.session_state.get("gemini_key_widget", "")) or get_effective_api_key()
         event_data = cv_engine.find_event_timestamp_with_ai(
             active_video_path,
             api_key=eff_key,
@@ -245,7 +246,7 @@ with col_right:
 
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
     if st.button("🔴 Send to Third Umpire (Adjudicate)", type="primary", use_container_width=True):
-        eff_key = get_effective_api_key(st.session_state.api_key_override)
+        eff_key = clean_key(st.session_state.get("gemini_key_widget", "")) or get_effective_api_key()
         with st.spinner("Gemini 3.1 Flash-Lite is evaluating crease geometry and bails..."):
             try:
                 docket = adjudicate_clip(

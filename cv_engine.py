@@ -111,7 +111,12 @@ def find_event_timestamp_with_ai(
         return fallback_data
 
     try:
-        client = genai.Client(api_key=effective_key, vertexai=False)
+        # Enforce explicit header and vertexai=False
+        client = genai.Client(
+            api_key=effective_key,
+            vertexai=False,
+            http_options=types.HttpOptions(headers={"x-goog-api-key": effective_key})
+        )
         uploaded_file = client.files.upload(file=video_path)
 
         prompt = """
@@ -145,7 +150,7 @@ Respond strictly in JSON:
             "notes": "AI-detected impact frame"
         }
     except Exception:
-        # Silently degrade to geometric mid-frame if video upload fails
+        # Silently fall back to geometric midpoint if scanning fails
         return fallback_data
 
 
