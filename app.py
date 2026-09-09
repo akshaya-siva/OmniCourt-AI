@@ -80,7 +80,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Session State
+# Session State Initialization
 if "current_video_path" not in st.session_state:
     st.session_state.current_video_path = None
 if "extracted_frames" not in st.session_state:
@@ -94,7 +94,7 @@ if "adjudication_result" not in st.session_state:
 if "adjudication_error" not in st.session_state:
     st.session_state.adjudication_error = None
 if "api_key_override" not in st.session_state:
-    st.session_state.api_key_override = ""
+    st.session_state.api_key_override = get_effective_api_key()
 if "auto_event_data" not in st.session_state:
     st.session_state.auto_event_data = None
 
@@ -111,14 +111,17 @@ st.markdown("""
 # Sidebar
 with st.sidebar:
     st.subheader("DRS Configuration")
-    api_key_input = st.text_input("Gemini API Key (Live Override)", value=st.session_state.api_key_override, type="password")
+    api_key_input = st.text_input(
+        "Gemini API Key (Live Override)",
+        value=st.session_state.api_key_override,
+        type="password"
+    )
     if api_key_input != st.session_state.api_key_override:
         st.session_state.api_key_override = api_key_input
 
-    # Diagnostic indicator showing active key resolution
-    resolved_key = get_effective_api_key(st.session_state.api_key_override)
-    if resolved_key:
-        st.caption(f"🔑 Active Key: `{resolved_key[:5]}...{resolved_key[-4:]}` ({len(resolved_key)} chars)")
+    active_key = get_effective_api_key(st.session_state.api_key_override)
+    if active_key:
+        st.caption(f"🔑 Active Key: `{active_key[:5]}...{active_key[-4:]}` ({len(active_key)} chars)")
     else:
         st.error("⚠️ No Gemini API key detected!")
 
@@ -180,7 +183,14 @@ with col_left:
         num_frames = len(frames)
         cur_idx = min(st.session_state.selected_frame_idx, num_frames - 1)
 
-        slider_val = st.slider("Timeline Scrubber", 0, num_frames - 1, cur_idx, format="Frame %d", label_visibility="collapsed")
+        slider_val = st.slider(
+            "Timeline Scrubber",
+            0,
+            num_frames - 1,
+            cur_idx,
+            format="Frame %d",
+            label_visibility="collapsed"
+        )
         if slider_val != st.session_state.selected_frame_idx:
             st.session_state.selected_frame_idx = slider_val
             st.rerun()
@@ -206,11 +216,13 @@ with col_left:
         frame_data = frames[st.session_state.selected_frame_idx]
         if os.path.exists(frame_data["file_path"]):
             st.image(Image.open(frame_data["file_path"]), use_container_width=True)
-            st.caption(f"Timecode: T={frame_data['timestamp_sec']:.2f}s | Frame #{st.session_state.selected_frame_idx + 1}")
+            st.caption(
+                f"Timecode: T={frame_data['timestamp_sec']:.2f}s | Frame #{st.session_state.selected_frame_idx + 1}"
+            )
 
 with col_right:
     st.markdown('<div class="studio-card-header">📸 Visual Evidence Strip (Target Payload)</div>', unsafe_allow_html=True)
-    
+
     evidence_frames = []
     if frames:
         evidence_frames = cv_engine.get_evidence_frames(

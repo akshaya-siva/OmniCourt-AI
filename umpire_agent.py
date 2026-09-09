@@ -5,7 +5,7 @@ Uses gemini-3.1-flash-lite on uncropped RGB frames to adjudicate Run Outs, Stump
 
 import os
 
-# Prevent google-genai from auto-routing to Google Cloud Vertex AI
+# Enforce Gemini Developer API and disable Vertex AI auto-detection
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
 os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
@@ -25,6 +25,8 @@ try:
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
+
+DEFAULT_GEMINI_KEY = ""
 
 
 class AdjudicationDocket(BaseModel):
@@ -57,24 +59,23 @@ class AdjudicationDocket(BaseModel):
 
 
 def clean_key(val: Optional[str]) -> str:
-    """Removes all whitespace, quotes, and newlines that break AQ. keys."""
+    """Strips quotes, spaces, and newline characters that break API keys."""
     if not val:
         return ""
-    return val.strip().strip('"').strip("'").strip()
+    return str(val).strip().strip('"').strip("'").strip()
 
 
-def get_effective_api_key(api_key_override: Optional[str] = None) -> Optional[str]:
-    # 1. UI Override takes absolute priority
-    cleaned_override = clean_key(api_key_override)
-    if cleaned_override:
-        return cleaned_override
+def get_effective_api_key(api_key_override: Optional[str] = None) -> str:
+    """Resolves active key from override, Cloud Run environment, or embedded default."""
+    cleaned = clean_key(api_key_override)
+    if cleaned:
+        return cleaned
 
-    # 2. Injected Cloud Run Environment Variable
-    env_k = clean_key(os.environ.get("GEMINI_API_KEY")) or clean_key(os.environ.get("GOOGLE_API_KEY"))
-    if env_k:
-        return env_k
+    env_key = clean_key(os.environ.get("GEMINI_API_KEY")) or clean_key(os.environ.get("GOOGLE_API_KEY"))
+    if env_key:
+        return env_key
 
-    return None
+    return DEFAULT_GEMINI_KEY
 
 
 def adjudicate_clip(
@@ -90,12 +91,12 @@ def adjudicate_clip(
     frames = extracted_frames or cv_engine.extract_video_frames(video_path, fps_sample=fps_sample, max_width=720)
     target_frames = evidence_frames if (evidence_frames and len(evidence_frames) > 0) else frames
 
-    api_key = get_effective_api_key(api_key_override)
-    if not api_key or not GENAI_AVAILABLE:
-        raise RuntimeError("GEMINI_API_KEY is not configured or google-genai is missing.")
+    active_key = get_effective_api_key(api_key_override)
+    if not active_key or not GENAI_AVAILABLE:
+        raise RuntimeError("Gemini API key is missing or google-genai package is not available.")
 
-    # Strictly enforce public developer endpoint without GCP vertex auto-switch
-    client = genai.Client(api_key=api_key, vertexai=False)
+    # Explicit constructor ensures zero routing to Vertex AI
+    client = genai.Client(api_key=active_key, vertexai=False)
 
     sample_frames = target_frames
     if len(target_frames) > 5:
