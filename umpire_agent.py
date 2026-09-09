@@ -1,6 +1,7 @@
 """
 OmniCourt-AI Third Umpire Intelligence Module.
 Uses gemini-3.1-flash-lite on uncropped RGB frames to adjudicate Run Outs, Stumpings, & Bowled dismissals.
+Features automated ICC T20 World Cup protocol synthesis.
 """
 
 import os
@@ -43,6 +44,9 @@ class AdjudicationDocket(BaseModel):
     confidence_score: float = Field(ge=0.0, le=1.0, description="Confidence score between 0.0 and 1.0.")
     visual_evidence_summary: str = Field(description="Clear technical explanation detailing stump impact, bails status, crease line, and bat/foot grounding.")
     agent_reasoning_trace: List[str] = Field(description="Step-by-step reasoning trace establishing the verdict.")
+    umpire_broadcast_audio_script: str = Field(
+        description="Official spoken third-umpire radio script spoken to the TV director and on-field umpire following ICC Elite Panel protocol."
+    )
 
     @property
     def confidence(self) -> float:
@@ -143,7 +147,7 @@ def adjudicate_clip(
     break_est = timecodes[len(timecodes) // 2] if timecodes else 0.0
 
     prompt = f"""
-You are an expert ICC/MCC Elite Panel Third Umpire conducting a DRS video review.
+You are an expert ICC Elite Panel Third Umpire officiating an ICC Men's T20 World Cup Match.
 You are inspecting {n} sequential chronological broadcast frames at timestamps: {timecodes}.
 
 DECISION PROTOCOL:
@@ -154,19 +158,24 @@ DECISION PROTOCOL:
    - For "NOT OUT": bat tip or batter is physically grounded on turf COMPLETELY PAST popping crease before bails dislodge.
    - Otherwise rule "OUT".
 
+UMPIRE VOCAL PROTOCOL REQUIREMENTS:
+In the field `umpire_broadcast_audio_script`, provide the exact formal ICC third-umpire radio transmission spoken over the broadcast mic, formatted like:
+"Director, rock and roll that for me please. Stop at the point of wicket break. Bails are completely dislodged from the spigots at timestamp {break_est:.2f} seconds. Looking at crease alignment: the bat is [on the line / grounded past the line]. I have satisfied myself. I have a decision for the big screen. You can stay with your original decision / reverse your decision: signal [OUT / NOT OUT]."
+
 Return strictly a JSON object conforming to this schema:
 {{
   "decision": "OUT" or "NOT OUT",
   "critical_timestamp_sec": {break_est},
   "bat_grounded_behind_crease": true or false,
   "governing_mcc_law": "MCC Law 38.1 (Run Out)" or "MCC Law 39.1 (Stumped)" or "MCC Law 32.1 (Bowled)",
-  "confidence_score": 0.95,
+  "confidence_score": 0.98,
   "visual_evidence_summary": "Detailed technical finding.",
   "agent_reasoning_trace": [
-    "Step 1: Examined delivery.",
+    "Step 1: Examined delivery angle.",
     "Step 2: Identified wicket break frame.",
     "Step 3: Inspected bat/foot grounding."
-  ]
+  ],
+  "umpire_broadcast_audio_script": "Director, rock and roll that please..."
 }}
 """
 
