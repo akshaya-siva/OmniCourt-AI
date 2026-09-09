@@ -4,8 +4,14 @@ Uses gemini-3.1-flash-lite on uncropped RGB frames to adjudicate Run Outs, Stump
 """
 
 import os
+import json
+from typing import Literal, List, Dict, Any, Optional
+import cv2
+import numpy as np
+from PIL import Image
+from pydantic import BaseModel, Field
 
-# Load local .env for local development convenience (no-op in production if excluded via .dockerignore)
+# Load local environment if present (no-op in production container)
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -16,13 +22,6 @@ except ImportError:
 os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
 os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
-
-import json
-from typing import Literal, List, Dict, Any, Optional
-import cv2
-import numpy as np
-from PIL import Image
-from pydantic import BaseModel, Field
 
 import cv_engine
 
@@ -64,7 +63,7 @@ class AdjudicationDocket(BaseModel):
 
 
 def clean_key(val: Optional[str]) -> str:
-    """Strips quotes, spaces, and newline characters that break API keys."""
+    """Strips quotes, spaces, and newline characters from API keys."""
     if not val:
         return ""
     return str(val).strip().strip('"').strip("'").strip()
@@ -76,7 +75,7 @@ def get_effective_api_key(api_key_override: Optional[str] = None) -> str:
     1. Returns manual override if provided.
     2. Falls back to GEMINI_API_KEY environment variable.
     3. Falls back to GOOGLE_API_KEY environment variable.
-    4. Returns empty string if none exist (no dummy or fabricated tokens).
+    4. Returns empty string if missing.
     """
     cleaned_override = clean_key(api_key_override)
     if cleaned_override:
@@ -91,16 +90,6 @@ def get_effective_api_key(api_key_override: Optional[str] = None) -> str:
         return env_google
 
     return ""
-
-
-def mask_key(key: str) -> str:
-    """Returns safe masked representation: ABCD...WXYZ (N chars)."""
-    cleaned = clean_key(key)
-    if not cleaned:
-        return "None"
-    if len(cleaned) <= 8:
-        return f"{cleaned[:2]}...{cleaned[-2:]} ({len(cleaned)} chars)"
-    return f"{cleaned[:4]}...{cleaned[-4:]} ({len(cleaned)} chars)"
 
 
 def adjudicate_clip(
@@ -118,12 +107,11 @@ def adjudicate_clip(
 
     active_key = get_effective_api_key(api_key_override)
     if not active_key:
-        raise RuntimeError("Gemini API key is missing. Set GEMINI_API_KEY in the environment or provide a Live Override.")
+        raise RuntimeError("Gemini API key is missing. Set GEMINI_API_KEY in deployment settings or enter a Live Override.")
 
     if not GENAI_AVAILABLE:
-        raise RuntimeError("The google-genai library is not installed or unavailable.")
+        raise RuntimeError("The google-genai library is not installed.")
 
-    # Standard SDK client invocation using the resolved API key
     client = genai.Client(api_key=active_key, vertexai=False)
 
     sample_frames = target_frames

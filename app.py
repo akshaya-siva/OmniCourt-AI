@@ -4,6 +4,7 @@ High-precision third-umpire interface with Gemini 3.1 Flash-Lite video scanning 
 """
 
 import os
+import hashlib
 
 # Load local environment if present
 try:
@@ -16,13 +17,7 @@ import streamlit as st
 from PIL import Image
 
 import cv_engine
-from umpire_agent import (
-    adjudicate_clip,
-    AdjudicationDocket,
-    get_effective_api_key,
-    clean_key,
-    mask_key,
-)
+from umpire_agent import adjudicate_clip, AdjudicationDocket, get_effective_api_key, clean_key
 
 st.set_page_config(page_title="OmniCourt-AI | DRS Studio", page_icon="🏏", layout="wide")
 
@@ -94,6 +89,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+def get_key_fingerprint(key_str: str) -> str:
+    """Returns a non-reversible SHA-256 fingerprint for safe diagnostics."""
+    if not key_str:
+        return "None"
+    return hashlib.sha256(key_str.encode("utf-8")).hexdigest()[:12]
+
+
 # Session State Initialization - Live Override widget starts EMPTY as an optional field
 if "gemini_key_widget" not in st.session_state:
     st.session_state["gemini_key_widget"] = ""
@@ -122,9 +125,11 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Resolve Active Key & Diagnostic Status
+# Key Resolution
 override_key = clean_key(st.session_state.get("gemini_key_widget", ""))
-active_key = get_effective_api_key(override_key)
+env_gemini_key = clean_key(os.environ.get("GEMINI_API_KEY"))
+env_google_key = clean_key(os.environ.get("GOOGLE_API_KEY"))
+active_key = override_key or env_gemini_key or env_google_key
 
 # Sidebar
 with st.sidebar:
@@ -134,16 +139,25 @@ with st.sidebar:
         "Gemini API Key (Live Override)",
         key="gemini_key_widget",
         type="password",
-        help="Optional: Enter a temporary key to override the deployment environment secret."
+        help="Optional: Enter a key here to override the deployment environment secret."
     )
 
-    # Diagnostic Indicator
-    if override_key:
-        st.success(f"🟢 **LIVE OVERRIDE PROVIDED**\n\nMasked: `{mask_key(override_key)}`")
-    elif active_key:
-        st.info(f"🔵 **DEFAULT ENVIRONMENT KEY AVAILABLE**\n\nMasked: `{mask_key(active_key)}`")
-    else:
-        st.error("🔴 **DEFAULT ENVIRONMENT KEY MISSING**\nPlease set `GEMINI_API_KEY` in deployment settings or enter a Live Override.")
+    # Safe Diagnostic Panel
+    with st.expander("🔍 Authentication Diagnostics", expanded=True):
+        if override_key:
+            st.success("State: **LIVE OVERRIDE PROVIDED**")
+            st.caption(f"Length: `{len(override_key)}` chars | SHA-256: `{get_key_fingerprint(override_key)}`")
+        elif env_gemini_key:
+            st.info("State: **DEFAULT ENVIRONMENT KEY AVAILABLE**")
+            st.caption(f"Source: `GEMINI_API_KEY` | Length: `{len(env_gemini_key)}` chars | SHA-256: `{get_key_fingerprint(env_gemini_key)}`")
+        elif env_google_key:
+            st.info("State: **DEFAULT ENVIRONMENT KEY AVAILABLE**")
+            st.caption(f"Source: `GOOGLE_API_KEY` | Length: `{len(env_google_key)}` chars | SHA-256: `{get_key_fingerprint(env_google_key)}`")
+        else:
+            st.error("State: **KEY MISSING**")
+            st.caption("Neither Live Override nor container GEMINI_API_KEY detected.")
+
+        st.caption(f"Vertex AI Mode: `{os.environ.get('GOOGLE_GENAI_USE_VERTEXAI', 'False')}`")
 
     videos_dir = os.path.join("assets", "videos")
     os.makedirs(videos_dir, exist_ok=True)
@@ -179,10 +193,9 @@ if active_video_path and active_video_path != st.session_state.current_video_pat
         )
 
     with st.spinner("Scanning video with Gemini 3.1 Flash-Lite to pinpoint wicket break..."):
-        eff_key = get_effective_api_key(clean_key(st.session_state.get("gemini_key_widget", "")))
         event_data = cv_engine.find_event_timestamp_with_ai(
             active_video_path,
-            api_key=eff_key,
+            api_key=active_key,
             frames=st.session_state.extracted_frames
         )
         st.session_state.auto_event_data = event_data
@@ -265,11 +278,8 @@ with col_right:
 
     st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
     if st.button("🔴 Send to Third Umpire (Adjudicate)", type="primary", use_container_width=True):
-        eff_key = get_effective_api_key(clean_key(st.session_state.get("gemini_key_widget", "")))
-        if not eff_key:
-            st.session_state.adjudication_error = (
-                "Gemini API key is missing. Set GEMINI_API_KEY in the deployment environment or enter a Live Override."
-            )
+        if not active_key:
+            st.session_state.adjudication_error = "Gemini API key is missing. Set GEMINI_API_KEY in the environment or enter a Live Override."
             st.session_state.adjudication_result = None
             st.rerun()
 
@@ -278,7 +288,7 @@ with col_right:
                 docket = adjudicate_clip(
                     active_video_path,
                     extracted_frames=frames,
-                    api_key_override=eff_key,
+                    api_key_override=active_key,
                     evidence_frames=evidence_frames
                 )
                 st.session_state.adjudication_result = docket

@@ -4,8 +4,12 @@ Handles frame extraction, temporal scanning with Gemini 3.1 Flash-Lite, and visu
 """
 
 import os
+import cv2
+import json
+import numpy as np
+from typing import List, Dict, Any, Optional
 
-# Load local .env for local development convenience
+# Load local environment if present
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -17,11 +21,6 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "False"
 os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
 os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
 
-import cv2
-import json
-import numpy as np
-from typing import List, Dict, Any, Optional
-
 try:
     from google import genai
     from google.genai import types
@@ -31,7 +30,7 @@ except ImportError:
 
 
 def clean_key(val: Optional[str]) -> str:
-    """Strips quotes, spaces, and newline characters that break API keys."""
+    """Strips quotes, spaces, and newline characters from API keys."""
     if not val:
         return ""
     return str(val).strip().strip('"').strip("'").strip()
@@ -150,7 +149,6 @@ Respond strictly in JSON:
             "notes": "AI-detected impact frame"
         }
     except Exception:
-        # Fall back cleanly without crashing UI pipeline
         return fallback_data
 
 
