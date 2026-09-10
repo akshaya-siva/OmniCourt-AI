@@ -1,6 +1,6 @@
 """
 OmniCourt-AI DRS Broadcast Cockpit.
-ICC Men's T20 World Cup Elite Panel Third Umpire Studio with Gemini 3.1 Flash-Lite Adjudication.
+Elite Panel Decision Review System with Gemini 3.1 Flash-Lite Adjudication Engine.
 """
 
 import os
@@ -27,46 +27,47 @@ import cv_engine
 from umpire_agent import adjudicate_clip, AdjudicationDocket, get_effective_api_key, clean_key
 
 st.set_page_config(
-    page_title="OmniCourt-AI | ICC T20 World Cup DRS Studio",
+    page_title="OmniCourt-AI | ICC DRS Broadcast Studio",
     page_icon="🏏",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Professional Star Sports / ICC Broadcast Theme
+# Professional Star Sports Broadcast Styling
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
     
     .stApp {
-        background: radial-gradient(circle at 50% 0%, #0c1731 0%, #060a16 55%, #02040a 100%);
+        background: radial-gradient(circle at 50% 0%, #0a1329 0%, #050914 55%, #020409 100%);
         color: #E2E8F0;
         font-family: 'Outfit', sans-serif;
     }
     
-    /* Star Sports Broadcast Header */
+    /* Top Broadcast Navbar */
     .broadcast-navbar {
-        background: linear-gradient(135deg, rgba(12, 23, 49, 0.95) 0%, rgba(20, 36, 75, 0.9) 50%, rgba(8, 14, 30, 0.95) 100%);
+        background: linear-gradient(135deg, rgba(10, 19, 41, 0.95) 0%, rgba(18, 32, 68, 0.92) 50%, rgba(7, 13, 28, 0.98) 100%);
         border: 1px solid rgba(0, 240, 255, 0.35);
         border-radius: 16px;
-        padding: 18px 28px;
-        margin-bottom: 22px;
+        padding: 16px 26px;
+        margin-bottom: 20px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     }
     .broadcast-title {
         font-family: 'Space Grotesk', sans-serif;
-        font-size: 26px;
+        font-size: 25px;
         font-weight: 900;
         letter-spacing: 1.5px;
         color: #FFFFFF;
         margin: 0;
-        text-shadow: 0 2px 10px rgba(0, 240, 255, 0.4);
+        text-shadow: 0 2px 12px rgba(0, 240, 255, 0.4);
     }
     .broadcast-title span { color: #00F0FF; }
-    .broadcast-badge {
+    
+    .live-badge {
         background: linear-gradient(90deg, #FF1744 0%, #D50000 100%);
         color: #FFFFFF;
         font-weight: 800;
@@ -78,26 +79,26 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         margin-right: 12px;
-        box-shadow: 0 0 12px rgba(255, 23, 68, 0.6);
+        box-shadow: 0 0 14px rgba(255, 23, 68, 0.6);
     }
-    .live-pulse {
-        width: 8px;
-        height: 8px;
+    .live-dot {
+        width: 7px;
+        height: 7px;
         background-color: #FFFFFF;
         border-radius: 50%;
         display: inline-block;
         margin-right: 6px;
-        animation: pulse-dot 1.2s infinite ease-in-out;
+        animation: blink 1.2s infinite ease-in-out;
     }
-    @keyframes pulse-dot {
+    @keyframes blink {
         0%, 100% { opacity: 1; transform: scale(1); }
         50% { opacity: 0.3; transform: scale(0.7); }
     }
     
-    /* Section Cards */
-    .studio-card-header {
+    /* Studio Card Headers */
+    .studio-header {
         font-family: 'Space Grotesk', sans-serif;
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 800;
         color: #00F0FF;
         text-transform: uppercase;
@@ -110,48 +111,57 @@ st.markdown("""
         gap: 8px;
     }
     
-    /* Big Screen TV Decision Banners */
+    /* Star Sports Stadium Verdict Banners */
     .banner-out {
-        background: linear-gradient(135deg, rgba(225, 29, 72, 0.3) 0%, rgba(136, 19, 55, 0.55) 100%);
+        background: linear-gradient(135deg, rgba(225, 29, 72, 0.32) 0%, rgba(136, 19, 55, 0.6) 100%);
         border: 2px solid #FF1744;
         border-radius: 16px;
-        padding: 24px;
+        padding: 22px;
         text-align: center;
-        margin-top: 15px;
-        box-shadow: 0 0 35px rgba(255, 23, 68, 0.4);
+        margin-top: 14px;
+        box-shadow: 0 0 35px rgba(255, 23, 68, 0.45);
     }
     .banner-notout {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(6, 78, 59, 0.55) 100%);
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.32) 0%, rgba(6, 78, 59, 0.6) 100%);
         border: 2px solid #00E676;
         border-radius: 16px;
-        padding: 24px;
+        padding: 22px;
         text-align: center;
-        margin-top: 15px;
-        box-shadow: 0 0 35px rgba(0, 230, 118, 0.4);
+        margin-top: 14px;
+        box-shadow: 0 0 35px rgba(0, 230, 118, 0.45);
     }
-    .verdict-text {
+    .verdict-large {
         font-family: 'Space Grotesk', sans-serif;
-        font-size: 60px;
+        font-size: 58px;
         font-weight: 900;
         letter-spacing: 6px;
         line-height: 1;
         margin: 0;
     }
-    .verdict-out-color { color: #FF1744; text-shadow: 0 0 25px rgba(255, 23, 68, 0.8); }
-    .verdict-notout-color { color: #00E676; text-shadow: 0 0 25px rgba(0, 230, 118, 0.8); }
+    .color-out { color: #FF1744; text-shadow: 0 0 25px rgba(255, 23, 68, 0.85); }
+    .color-notout { color: #00E676; text-shadow: 0 0 25px rgba(0, 230, 118, 0.85); }
     
-    /* Audio Transmission Radio Box */
-    .radio-box {
-        background: rgba(10, 20, 40, 0.7);
-        border: 1px solid rgba(0, 240, 255, 0.3);
-        border-left: 4px solid #00F0FF;
+    /* Telemetry Metrics Row */
+    .telemetry-card {
+        background: rgba(14, 24, 52, 0.6);
+        border: 1px solid rgba(0, 240, 255, 0.2);
         border-radius: 10px;
-        padding: 14px 18px;
-        margin-top: 16px;
-        margin-bottom: 12px;
-        font-size: 14px;
-        line-height: 1.6;
-        color: #E2E8F0;
+        padding: 10px 14px;
+        text-align: center;
+    }
+    .telemetry-label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #94A3B8;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+    }
+    .telemetry-val {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 15px;
+        font-weight: 800;
+        color: #00F0FF;
+        margin-top: 2px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -163,41 +173,67 @@ def get_key_fingerprint(key_str: str) -> str:
     return hashlib.sha256(key_str.encode("utf-8")).hexdigest()[:12]
 
 
-# Web Speech Audio Synthesizer Component
+# Web Speech Broadcast Console Component
 def play_broadcast_audio_script(text_to_speak: str):
     clean_text = json.dumps(text_to_speak)
     html_code = f"""
-    <div style="background: rgba(0, 240, 255, 0.08); border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 12px; padding: 14px 18px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between;">
-        <div>
-            <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; color: #00F0FF; letter-spacing: 0.8px;">
-                🎙️ ICC THIRD UMPIRE LIVE RADIO STREAM
+    <div style="background: rgba(10, 20, 42, 0.85); border: 1px solid rgba(0, 240, 255, 0.35); border-radius: 14px; padding: 16px 20px; margin-top: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #00F0FF; box-shadow: 0 0 8px #00F0FF;"></span>
+                <span style="font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 13px; color: #FFFFFF; letter-spacing: 1px; text-transform: uppercase;">
+                    ICC Third Umpire Audio Broadcast
+                </span>
             </div>
-            <div style="font-size: 11px; color: #94A3B8; margin-top: 2px;">
-                Direct Elite Panel comms to TV director & big screen
+            
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <select id="voice-gender" style="background: #060B16; color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.4); border-radius: 6px; padding: 6px 12px; font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; outline: none; cursor: pointer;">
+                    <option value="female" selected>Announcer: Lead Official (Female)</option>
+                    <option value="male">Announcer: Senior Umpire (Male)</option>
+                </select>
+                
+                <button id="speak-btn" onclick="triggerBroadcastComms()" style="background: linear-gradient(135deg, #00F0FF 0%, #0088FF 100%); color: #04070D; border: none; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 12px; padding: 7px 16px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);">
+                    ▶ PLAY TRANSMISSION
+                </button>
             </div>
         </div>
-        <button id="speak-btn" onclick="speakUmpireAudio()" style="background: linear-gradient(135deg, #00F0FF 0%, #0088FF 100%); color: #04070D; border: none; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 13px; padding: 9px 18px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(0, 240, 255, 0.35);">
-            ▶ PLAY AUDIO TRANSMISSION
-        </button>
+
+        <div style="background: rgba(4, 8, 18, 0.7); border-left: 3px solid #00F0FF; border-radius: 6px; padding: 12px 14px; font-size: 13.5px; line-height: 1.55; color: #E2E8F0;">
+            <span style="font-size: 11px; font-weight: 700; color: #00F0FF; text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 4px;">
+                Direct Stadium Transmission Feed:
+            </span>
+            <em>"{text_to_speak}"</em>
+        </div>
     </div>
 
     <script>
-    function speakUmpireAudio() {{
+    function triggerBroadcastComms() {{
         if ('speechSynthesis' in window) {{
             window.speechSynthesis.cancel();
             const text = {clean_text};
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 0.95;
+            utterance.rate = 0.96;
             utterance.pitch = 1.0;
             
+            const gender = document.getElementById('voice-gender').value;
             const voices = window.speechSynthesis.getVoices();
-            const englishVoice = voices.find(v => v.lang.includes('en') && (v.name.includes('UK') || v.name.includes('British') || v.name.includes('Natural') || v.name.includes('Google')));
-            if (englishVoice) {{
-                utterance.voice = englishVoice;
+            
+            let chosenVoice = null;
+            if (gender === 'female') {{
+                chosenVoice = voices.find(v => v.lang.includes('en') && (v.name.includes('Female') || v.name.includes('Samantha') || v.name.includes('Victoria') || v.name.includes('Google UK English Female') || v.name.includes('Zira')));
+            }} else {{
+                chosenVoice = voices.find(v => v.lang.includes('en') && (v.name.includes('Male') || v.name.includes('George') || v.name.includes('David') || v.name.includes('Google UK English Male') || v.name.includes('Daniel')));
+            }}
+            
+            if (!chosenVoice) {{
+                chosenVoice = voices.find(v => v.lang.includes('en'));
+            }}
+            if (chosenVoice) {{
+                utterance.voice = chosenVoice;
             }}
             
             const btn = document.getElementById('speak-btn');
-            btn.innerHTML = '🔊 TRANSMITTING...';
+            btn.innerHTML = '🔊 ON AIR...';
             btn.style.background = '#FF1744';
             btn.style.color = '#FFFFFF';
             
@@ -212,13 +248,9 @@ def play_broadcast_audio_script(text_to_speak: str):
             alert('Web Speech Synthesis is not supported in this browser.');
         }}
     }}
-    // Trigger automatically on render
-    window.addEventListener('load', () => {{
-        setTimeout(speakUmpireAudio, 400);
-    }});
     </script>
     """
-    components.html(html_code, height=90)
+    components.html(html_code, height=140)
 
 
 # State Initializations
@@ -243,11 +275,11 @@ if "auto_event_data" not in st.session_state:
 st.markdown("""
 <div class="broadcast-navbar">
     <div style="display: flex; align-items: center;">
-        <span class="broadcast-badge"><span class="live-pulse"></span>LIVE DRS</span>
+        <span class="live-badge"><span class="live-dot"></span>LIVE DRS</span>
         <div>
             <h1 class="broadcast-title">🏏 <span>OMNICOURT-AI</span> DRS STUDIO</h1>
             <div style="font-size: 11px; font-weight: 600; color: #94A3B8; letter-spacing: 1px;">
-                ICC MEN'S T20 WORLD CUP • ELITE PANEL REVIEW SYSTEM • GEMINI 3.1 FLASH-LITE ENGINE
+                ICC MEN'S T20 WORLD CUP • ELITE PANEL ADJUDICATION • GEMINI 3.1 FLASH-LITE ENGINE
             </div>
         </div>
     </div>
@@ -268,7 +300,7 @@ env_gemini_key = clean_key(os.environ.get("GEMINI_API_KEY"))
 env_google_key = clean_key(os.environ.get("GOOGLE_API_KEY"))
 active_key = override_key or env_gemini_key or env_google_key
 
-# Sidebar Controls
+# Clean Sidebar
 with st.sidebar:
     st.markdown("### ⚙️ DRS Cockpit Settings")
     st.text_input(
@@ -277,20 +309,6 @@ with st.sidebar:
         type="password",
         help="Optional: Enter a key here to override the deployment environment secret."
     )
-
-    with st.expander("🔍 Match Comms & Diagnostics", expanded=True):
-        if override_key:
-            st.success("State: **LIVE OVERRIDE ACTIVE**")
-            st.caption(f"Length: `{len(override_key)}` chars | SHA-256: `{get_key_fingerprint(override_key)}`")
-        elif env_gemini_key or env_google_key:
-            st.info("State: **BROADCAST KEY READY**")
-            src = "GEMINI_API_KEY" if env_gemini_key else "GOOGLE_API_KEY"
-            st.caption(f"Source: `{src}` | Length: `{len(active_key)}` chars | SHA-256: `{get_key_fingerprint(active_key)}`")
-        else:
-            st.error("State: **NO KEY DETECTED**")
-            st.caption("Please configure `GEMINI_API_KEY` in Cloud Run.")
-
-        st.caption("Model: `gemini-3.1-flash-lite` | Vertex AI: `Disabled`")
 
     videos_dir = os.path.join("assets", "videos")
     os.makedirs(videos_dir, exist_ok=True)
@@ -309,6 +327,20 @@ with st.sidebar:
         active_video_path = save_path
     elif video_choice != "Upload Custom Video...":
         active_video_path = os.path.join(videos_dir, video_choice)
+
+    # Collapsed Admin Diagnostics
+    with st.expander("🛠️ Admin & Auth Diagnostics", expanded=False):
+        if override_key:
+            st.success("State: **LIVE OVERRIDE ACTIVE**")
+            st.caption(f"Length: `{len(override_key)}` chars | SHA-256: `{get_key_fingerprint(override_key)}`")
+        elif env_gemini_key or env_google_key:
+            st.info("State: **BROADCAST KEY READY**")
+            src = "GEMINI_API_KEY" if env_gemini_key else "GOOGLE_API_KEY"
+            st.caption(f"Source: `{src}` | Length: `{len(active_key)}` chars | SHA-256: `{get_key_fingerprint(active_key)}`")
+        else:
+            st.error("State: **NO KEY DETECTED**")
+            st.caption("Please configure `GEMINI_API_KEY` in Cloud Run.")
+        st.caption("Model: `gemini-3.1-flash-lite` | Vertex AI: `Disabled`")
 
 # Video Ingestion Pipeline
 if active_video_path and active_video_path != st.session_state.current_video_path:
@@ -341,7 +373,7 @@ frames = st.session_state.extracted_frames
 col_left, col_right = st.columns([1.12, 1.0], gap="large")
 
 with col_left:
-    st.markdown('<div class="studio-card-header">📹 Broadcast Incident Feed & Sub-Frame Scrubber</div>', unsafe_allow_html=True)
+    st.markdown('<div class="studio-header">📹 Broadcast Incident Feed & Sub-Frame Scrubber</div>', unsafe_allow_html=True)
     if active_video_path:
         st.video(active_video_path, format="video/mp4")
 
@@ -387,7 +419,7 @@ with col_left:
             )
 
 with col_right:
-    st.markdown('<div class="studio-card-header">🔍 Visual Evidence Strip (Payload to Gemini 3.1)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="studio-header">🔍 Visual Evidence Strip (Payload to Gemini 3.1)</div>', unsafe_allow_html=True)
 
     evidence_frames = []
     if frames:
@@ -438,33 +470,46 @@ with col_right:
     if docket:
         # Star Sports Stadium Decision Banner
         banner_cls = "banner-out" if docket.decision == "OUT" else "banner-notout"
-        txt_cls = "verdict-out-color" if docket.decision == "OUT" else "verdict-notout-color"
+        txt_cls = "color-out" if docket.decision == "OUT" else "color-notout"
         st.markdown(f"""
         <div class="{banner_cls}">
-            <div style="font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 800; color: #CBD5E1; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px;">
+            <div style="font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 800; color: #CBD5E1; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 4px;">
                 ICC T20 WORLD CUP OFFICIAL VERDICT
             </div>
-            <div class="verdict-text {txt_cls}">{docket.decision}</div>
-            <div style="font-size: 14px; font-weight: 700; color: #FFFFFF; margin-top: 8px;">
-                {docket.governing_mcc_law} • Confidence: {docket.confidence_score * 100:.1f}%
+            <div class="verdict-large {txt_cls}">{docket.decision}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Telemetry Metrics Grid
+        t1, t2, t3 = st.columns(3)
+        with t1:
+            st.markdown(f"""
+            <div class="telemetry-card">
+                <div class="telemetry-label">Governing Law</div>
+                <div class="telemetry-val">{docket.governing_mcc_law}</div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        with t2:
+            st.markdown(f"""
+            <div class="telemetry-card">
+                <div class="telemetry-label">Wicket Break</div>
+                <div class="telemetry-val">T = {docket.critical_timestamp_sec:.2f}s</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with t3:
+            st.markdown(f"""
+            <div class="telemetry-card">
+                <div class="telemetry-label">Confidence</div>
+                <div class="telemetry-val">{docket.confidence_score * 100:.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        # Automated ICC Radio Voice Synthesizer
+        # Audio Transmission Console (No auto-play, female announcer default)
         play_broadcast_audio_script(docket.umpire_broadcast_audio_script)
-
-        # Official Transmission Script Box
-        st.markdown(f"""
-        <div class="radio-box">
-            <strong style="color: #00F0FF;">📻 Transmitted Radio Dialogue:</strong><br>
-            <em>"{docket.umpire_broadcast_audio_script}"</em>
-        </div>
-        """, unsafe_allow_html=True)
 
         st.markdown("#### 📋 Crease Geometry & Physical Rationale")
         st.write(docket.visual_evidence_summary)
 
-        with st.expander("🤖 Multi-Agent Deliberation & Protocol Trace", expanded=True):
+        with st.expander("🤖 Multi-Agent Deliberation & Protocol Trace", expanded=False):
             for step in docket.agent_reasoning_trace:
                 st.markdown(f"- {step}")

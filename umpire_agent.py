@@ -1,7 +1,7 @@
 """
 OmniCourt-AI Third Umpire Intelligence Module.
 Uses gemini-3.1-flash-lite on uncropped RGB frames to adjudicate Run Outs, Stumpings, & Bowled dismissals.
-Features automated ICC T20 World Cup protocol synthesis.
+Features formal ICC Stadium & Broadcast Voice Transmission synthesis.
 """
 
 import os
@@ -45,7 +45,7 @@ class AdjudicationDocket(BaseModel):
     visual_evidence_summary: str = Field(description="Clear technical explanation detailing stump impact, bails status, crease line, and bat/foot grounding.")
     agent_reasoning_trace: List[str] = Field(description="Step-by-step reasoning trace establishing the verdict.")
     umpire_broadcast_audio_script: str = Field(
-        description="Official spoken third-umpire radio script spoken to the TV director and on-field umpire following ICC Elite Panel protocol."
+        description="Official formal stadium announcement spoken with clarity and authority."
     )
 
     @property
@@ -147,20 +147,20 @@ def adjudicate_clip(
     break_est = timecodes[len(timecodes) // 2] if timecodes else 0.0
 
     prompt = f"""
-You are an expert ICC Elite Panel Third Umpire officiating an ICC Men's T20 World Cup Match.
-You are inspecting {n} sequential chronological broadcast frames at timestamps: {timecodes}.
+You are the Official ICC Elite Panel Third Umpire delivering a formal review adjudication.
+You are inspecting {n} sequential broadcast frames at timestamps: {timecodes}.
 
 DECISION PROTOCOL:
 1. CHECK FOR DIRECT "BOWLED" (MCC Law 32).
-2. IDENTIFY THE MOMENT THE WICKET IS BROKEN (MCC Law 29).
-3. CHECK BAT / FOOT GROUNDING (MCC Law 38 Run Out / MCC Law 39 Stumped):
+2. IDENTIFY THE EXACT POINT OF WICKET BREAK (MCC Law 29).
+3. EVALUATE CREASE GROUNDING (MCC Law 38 Run Out / MCC Law 39 Stumped):
    - The line belongs to the umpire.
    - For "NOT OUT": bat tip or batter is physically grounded on turf COMPLETELY PAST popping crease before bails dislodge.
    - Otherwise rule "OUT".
 
-UMPIRE VOCAL PROTOCOL REQUIREMENTS:
-In the field `umpire_broadcast_audio_script`, provide the exact formal ICC third-umpire radio transmission spoken over the broadcast mic, formatted like:
-"Director, rock and roll that for me please. Stop at the point of wicket break. Bails are completely dislodged from the spigots at timestamp {break_est:.2f} seconds. Looking at crease alignment: the bat is [on the line / grounded past the line]. I have satisfied myself. I have a decision for the big screen. You can stay with your original decision / reverse your decision: signal [OUT / NOT OUT]."
+STADIUM BROADCAST ANNOUNCEMENT SCRIPT:
+In the field `umpire_broadcast_audio_script`, provide an authoritative, professional verbal statement suitable for live stadium broadcast, following this structure:
+"Official DRS Adjudication: Evaluating crease geometry at bail dislodgment. At timestamp {break_est:.2f} seconds, bails are completely broken from the stumps. Visual evidence confirms the bat is [clearly grounded past the popping crease / airborne on the line with no turf contact]. Ruling under [MCC Law]: [OUT / NOT OUT]. Decision confirmed on the big screen."
 
 Return strictly a JSON object conforming to this schema:
 {{
@@ -169,13 +169,13 @@ Return strictly a JSON object conforming to this schema:
   "bat_grounded_behind_crease": true or false,
   "governing_mcc_law": "MCC Law 38.1 (Run Out)" or "MCC Law 39.1 (Stumped)" or "MCC Law 32.1 (Bowled)",
   "confidence_score": 0.98,
-  "visual_evidence_summary": "Detailed technical finding.",
+  "visual_evidence_summary": "Technical finding detailing bail displacement and bat grounding.",
   "agent_reasoning_trace": [
-    "Step 1: Examined delivery angle.",
-    "Step 2: Identified wicket break frame.",
-    "Step 3: Inspected bat/foot grounding."
+    "Step 1: Frame sequence ingested.",
+    "Step 2: Microsecond bail break confirmed.",
+    "Step 3: Ground contact geometry verified."
   ],
-  "umpire_broadcast_audio_script": "Director, rock and roll that please..."
+  "umpire_broadcast_audio_script": "Official DRS Adjudication: Evaluating crease geometry..."
 }}
 """
 
